@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#2d1060"/>
+      <stop offset="100%" stop-color="#0d0820"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Outer circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+
+  <!-- Glow ring -->
+  <circle cx="256" cy="256" r="200" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="195" fill="none" stroke="#a855f7" stroke-width="3" opacity="0.5"/>
+
+  <!-- Yin-yang: white half (top) -->
+  <path d="M256,76 A180,180,0,0,1,256,436 A90,90,0,0,1,256,256 A90,90,0,0,0,256,76 Z" fill="#f0e6ff"/>
+  <!-- Yin-yang: black half (bottom) -->
+  <path d="M256,76 A180,180,0,0,0,256,436 A90,90,0,0,0,256,256 A90,90,0,0,1,256,76 Z" fill="#1a0535"/>
+
+  <!-- Small top circle (white half, black dot) -->
+  <circle cx="256" cy="166" r="30" fill="#1a0535"/>
+  <!-- Small bottom circle (black half, white dot) -->
+  <circle cx="256" cy="346" r="30" fill="#f0e6ff"/>
+
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#7c3aed" stroke-width="4" opacity="0.8"/>
+
+  <!-- Star dots around -->
+  <circle cx="256" cy="68" r="5" fill="#c084fc" opacity="0.7"/>
+  <circle cx="388" cy="134" r="4" fill="#c084fc" opacity="0.5"/>
+  <circle cx="444" cy="256" r="5" fill="#c084fc" opacity="0.7"/>
+  <circle cx="388" cy="378" r="4" fill="#c084fc" opacity="0.5"/>
+  <circle cx="256" cy="444" r="5" fill="#c084fc" opacity="0.7"/>
+  <circle cx="124" cy="378" r="4" fill="#c084fc" opacity="0.5"/>
+  <circle cx="68" cy="256" r="5" fill="#c084fc" opacity="0.7"/>
+  <circle cx="124" cy="134" r="4" fill="#c084fc" opacity="0.5"/>
+</svg>

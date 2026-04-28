@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed } = rateLimit(ip, "chat", 15, 60_000); // 15 req/phút/IP
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Bạn đang gửi quá nhiều tin nhắn. Vui lòng chờ một chút rồi thử lại." },
+      { status: 429 }
+    );
+  }
+
   const { messages, profile } = await req.json();
 
   const systemPrompt = `Bạn là trợ lý tử vi AI, chuyên tư vấn dựa trên hệ thống Tứ Trụ và Ngũ Hành của người dùng.
