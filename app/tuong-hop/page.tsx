@@ -44,6 +44,8 @@ export default function TuongHopPage() {
     color: "white",
     outline: "none",
     width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box" as const,
     fontSize: 16,
   };
 
