@@ -3,13 +3,92 @@
 // Thuật toán âm lịch: Hồ Ngọc Đức (www.informatik.uni-leipzig.de/~duc)
 // ============================================================
 
+// Helper: Tính Julian Day Number từ dương lịch
+export function jdFromDate(dd: number, mm: number, yy: number): number {
+  const a = Math.floor((14 - mm) / 12);
+  const y = yy + 4800 - a;
+  const m = mm + 12 * a - 3;
+  let jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+  if (jd < 2299161) jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
+  return jd;
+}
+
+// ============================================================
+// TỨ TRỤ (Tứ Trụ Bát Tự)
+// Tính Can Chi của năm, tháng, ngày, giờ sinh
+// ============================================================
+export interface TruCanChi { can: string; chi: string; }
+export type MucDoDanhGia = 'thuận lợi' | 'trung tính' | 'cần thận trọng';
+
+export interface DanhGiaThamKhao {
+  mucDo: MucDoDanhGia;
+  tieuDe: string;
+  moTa: string;
+  mauSac: string;
+}
+
+export interface VanHanThangInfo extends DanhGiaThamKhao {
+  thang: number;
+  nguHanhThang: string;
+}
+
+function mod(value: number, base: number): number {
+  return ((value % base) + base) % base;
+}
+
+const GIO_CHI_IDX: Record<string, number> = {
+  'Tý (23h-1h)': 0, 'Sửu (1h-3h)': 1, 'Dần (3h-5h)': 2, 'Mão (5h-7h)': 3,
+  'Thìn (7h-9h)': 4, 'Tỵ (9h-11h)': 5, 'Ngọ (11h-13h)': 6, 'Mùi (13h-15h)': 7,
+  'Thân (15h-17h)': 8, 'Dậu (17h-19h)': 9, 'Tuất (19h-21h)': 10, 'Hợi (21h-23h)': 11,
+};
+
+export function getTuTru(
+  dd: number, mm: number, yy: number,
+  gioSinh: string,
+  thangAm: number, namAm: number
+): { nam: TruCanChi; thang: TruCanChi; ngay: TruCanChi; gio: TruCanChi } {
+  // --- Năm ---
+  const namCanIdx = mod(namAm - 4, 10);
+  const namChiIdx = mod(namAm - 4, 12);
+
+  // --- Tháng ---
+  // Chi tháng: tháng 1 âm = Dần (idx 2), tháng 2 = Mão (3), ...
+  const thangChiIdx = (thangAm + 1) % 12;
+  // Can tháng phụ thuộc vào can năm (quy tắc ngũ hổ độn nguyệt)
+  // Giáp/Kỷ → tháng 1 âm bắt đầu Bính (2); Ất/Canh → Mậu (4); Bính/Tân → Canh (6); Đinh/Nhâm → Nhâm (8); Mậu/Quý → Giáp (0)
+  const thangCanStart = [2, 4, 6, 8, 0][namCanIdx % 5];
+  const thangCanIdx = mod(thangCanStart + thangAm - 1, 10);
+
+  // --- Ngày ---
+  // Can Chi ngày có thể tính trực tiếp từ JDN, tránh lệch mốc tham chiếu.
+  const jd = jdFromDate(dd, mm, yy);
+  const ngayCanIdx = mod(jd + 9, 10);
+  const ngayChiIdx = mod(jd + 1, 12);
+
+  // --- Giờ ---
+  // Chi giờ: từ tên giờ sinh
+  const gioChiIdx = GIO_CHI_IDX[gioSinh] ?? 0;
+  // Can giờ phụ thuộc vào can ngày (quy tắc ngũ thử độn thời)
+  // Giáp/Kỷ → giờ Tý bắt đầu Giáp (0); Ất/Canh → Bính (2); Bính/Tân → Mậu (4); Đinh/Nhâm → Canh (6); Mậu/Quý → Nhâm (8)
+  const gioCanStart = [0, 2, 4, 6, 8][ngayCanIdx % 5];
+  const gioCanIdx = mod(gioCanStart + gioChiIdx, 10);
+
+  return {
+    nam:   { can: THIEN_CAN[namCanIdx],   chi: DIA_CHI[namChiIdx] },
+    thang: { can: THIEN_CAN[thangCanIdx], chi: DIA_CHI[thangChiIdx] },
+    ngay:  { can: THIEN_CAN[ngayCanIdx],  chi: DIA_CHI[ngayChiIdx] },
+    gio:   { can: THIEN_CAN[gioCanIdx],   chi: DIA_CHI[gioChiIdx] },
+  };
+}
+
 // Chuyển dương lịch → âm lịch (trả về [ngayAm, thangAm, namAm])
 export function solarToLunar(dd: number, mm: number, yy: number): [number, number, number] {
   const PI = Math.PI;
+  const timeZone = 7;
 
   function INT(d: number) { return Math.floor(d); }
 
-  function jdFromDate(dd: number, mm: number, yy: number) {
+  function jdFromDateLocal(dd: number, mm: number, yy: number) {
     const a = INT((14 - mm) / 12);
     const y = yy + 4800 - a;
     const m = mm + 12 * a - 3;
@@ -41,42 +120,52 @@ export function solarToLunar(dd: number, mm: number, yy: number): [number, numbe
 
   function SunLongitude(jdn: number) {
     const T = (jdn - 2451545.0) / 36525;
-    const T2 = T * T; const dr = PI / 180; const M = 357.5291 + 35999.0503 * T - 0.0001559 * T2 - 0.00000048 * T * T2;
+    const T2 = T * T;
+    const dr = PI / 180;
+    const M = 357.5291 + 35999.0503 * T - 0.0001559 * T2 - 0.00000048 * T * T2;
     const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T2;
-    let DL = 1.9146 - 0.004817 * T - 0.000014 * T2;
-    DL = DL * Math.sin(dr * M) + 0.019993 - 0.000101 * T;
-    DL = DL * Math.sin(dr * 2 * M) + 0.00029 * Math.sin(dr * 3 * M);
+    let DL = (1.9146 - 0.004817 * T - 0.000014 * T2) * Math.sin(dr * M);
+    DL += (0.019993 - 0.000101 * T) * Math.sin(dr * 2 * M) + 0.00029 * Math.sin(dr * 3 * M);
     let L = L0 + DL;
-    L = L - 360 * INT(L / 360);
-    return INT(L / 30);
+    L *= dr;
+    L -= PI * 2 * INT(L / (PI * 2));
+    return L;
+  }
+
+  function getSunLongitude(dayNumber: number, tz: number) {
+    return INT(SunLongitude(dayNumber - 0.5 - tz / 24) / PI * 6);
+  }
+
+  function getNewMoonDay(k: number, tz: number) {
+    return INT(NewMoon(k) + 0.5 + tz / 24);
   }
 
   function getLunarMonth11(yy: number, timeZone: number) {
-    const off = jdFromDate(31, 12, yy) - 2415021;
+    const off = jdFromDateLocal(31, 12, yy) - 2415021;
     const k = INT(off / 29.530588853);
-    let nm = NewMoon(k);
-    const sunLong = SunLongitude(nm);
-    if (sunLong >= 9) nm = NewMoon(k - 1);
-    return INT(nm + 0.5 + timeZone / 24);
+    let nm = getNewMoonDay(k, timeZone);
+    const sunLong = getSunLongitude(nm, timeZone);
+    if (sunLong >= 9) nm = getNewMoonDay(k - 1, timeZone);
+    return nm;
   }
 
   function getLeapMonthOffset(a11: number, timeZone: number) {
     const k = INT((a11 - 2415021.076998695) / 29.530588853 + 0.5);
-    let last = 0; let i = 1;
-    let arc = SunLongitude(INT(NewMoon(k + i) + 0.5 + timeZone / 24));
+    let last = 0;
+    let i = 1;
+    let arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone);
     do {
       last = arc;
       i++;
-      arc = SunLongitude(INT(NewMoon(k + i) + 0.5 + timeZone / 24));
+      arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone);
     } while (arc !== last && i < 14);
     return i - 1;
   }
 
-  const timeZone = 7;
-  const dayNumber = jdFromDate(dd, mm, yy);
+  const dayNumber = jdFromDateLocal(dd, mm, yy);
   const k = INT((dayNumber - 2415021.076998695) / 29.530588853);
-  let monthStart = INT(NewMoon(k + 1) + 0.5 + timeZone / 24);
-  if (monthStart > dayNumber) monthStart = INT(NewMoon(k) + 0.5 + timeZone / 24);
+  let monthStart = getNewMoonDay(k + 1, timeZone);
+  if (monthStart > dayNumber) monthStart = getNewMoonDay(k, timeZone);
 
   let a11 = getLunarMonth11(yy, timeZone);
   let b11 = a11;
@@ -143,8 +232,8 @@ const NAP_AM: { nguHanh: string; tenGoi: string }[] = [
 
 // Tính Can Chi năm
 export function getCanChiNam(year: number) {
-  const canIdx = (year - 4) % 10;
-  const chiIdx = (year - 4) % 12;
+  const canIdx = mod(year - 4, 10);
+  const chiIdx = mod(year - 4, 12);
   return {
     can: THIEN_CAN[canIdx],
     chi: DIA_CHI[chiIdx],
@@ -154,7 +243,7 @@ export function getCanChiNam(year: number) {
 
 // Tính bản mệnh ngũ hành (nạp âm)
 export function getBanMenh(year: number) {
-  const viTri = (year - 4) % 60; // vị trí trong chu kỳ 60 năm
+  const viTri = mod(year - 4, 60); // vị trí trong chu kỳ 60 năm
   const idx = Math.floor(viTri / 2); // mỗi cặp 2 năm
   return NAP_AM[idx];
 }
@@ -180,7 +269,7 @@ const GIO_DIA_CHI: Record<string, string> = {
 export function getCungMenh(thangAm: number, gioSinh: string): string {
   const gioIdx = DIA_CHI.indexOf(GIO_DIA_CHI[gioSinh] ?? 'Tý');
   // Vị trí cung = (Dần=2 + tháng - 1) - gioIdx, tính theo mod 12
-  const viTri = ((2 + thangAm - 1) - gioIdx + 120) % 12;
+  const viTri = mod(2 + thangAm - 1 - gioIdx, 12);
   return DIA_CHI[viTri];
 }
 
@@ -189,52 +278,303 @@ export const NGU_HANH_INFO: Record<string, { emoji: string; moTa: string; mauSac
   'Kim': {
     emoji: '⚙️',
     mauSac: '#FFD700',
-    moTa: 'Người mệnh Kim cứng rắn, quyết đoán, có ý chí mạnh mẽ. Thích sự công bằng, nguyên tắc và trật tự. Thường thành công trong lĩnh vực tài chính, kỹ thuật.',
+    moTa: 'Mệnh Kim mang theo sự rõ ràng và dứt khoát — người có xu hướng nói thẳng, làm thật và coi trọng nguyên tắc. Sức mạnh lớn nhất là độ sắc bén trong quyết định, điểm cần chú ý là đừng để cái cứng thành cái lạnh.',
   },
   'Mộc': {
     emoji: '🌿',
     mauSac: '#4CAF50',
-    moTa: 'Người mệnh Mộc nhân từ, phóng khoáng, yêu thiên nhiên. Có khả năng sáng tạo và tư duy linh hoạt. Phát triển tốt trong giáo dục, nghệ thuật, môi trường.',
+    moTa: 'Mệnh Mộc nghiêng về sự phát triển và mở rộng — thích học, thích khám phá, dễ thấu cảm với người khác. Linh hoạt là điểm mạnh, nhưng đôi khi cũng là lý do ôm quá nhiều thứ một lúc.',
   },
   'Thủy': {
     emoji: '💧',
     mauSac: '#2196F3',
-    moTa: 'Người mệnh Thủy thông minh, linh hoạt, khéo léo trong giao tiếp. Có trực giác nhạy bén và khả năng thích nghi cao. Thích hợp với nghề tư vấn, nghiên cứu.',
+    moTa: 'Mệnh Thủy nhạy cảm và uyển chuyển — đọc người nhanh, xử lý tình huống giỏi và thường hiểu điều người khác chưa nói ra. Trực giác là tài sản lớn, nhưng cũng dễ dao động khi môi trường xung quanh thay đổi.',
   },
   'Hỏa': {
     emoji: '🔥',
     mauSac: '#FF5722',
-    moTa: 'Người mệnh Hỏa nhiệt tình, năng động, đam mê và có sức lôi cuốn. Lãnh đạo bẩm sinh, dũng cảm đối mặt thử thách. Thành công trong kinh doanh, chính trị.',
+    moTa: 'Mệnh Hỏa rực và chủ động — khi đã bắt đầu thì đi tới cùng, truyền được năng lượng cho những người xung quanh. Điểm cần chú ý là giữ được nhịp bền chứ không chỉ bùng mạnh lúc đầu.',
   },
   'Thổ': {
     emoji: '🏔️',
     mauSac: '#795548',
-    moTa: 'Người mệnh Thổ trung thực, kiên nhẫn, đáng tin cậy và thực tế. Có nền tảng vững chắc, giỏi tích lũy tài sản. Phù hợp với bất động sản, nông nghiệp, y tế.',
+    moTa: 'Mệnh Thổ vững và đáng tin — không vội, không hấp tấp, nhưng khi đã làm thì làm tới nơi. Nền tảng ổn định là thế mạnh tự nhiên, thứ cần cân bằng là tránh để sự thận trọng trở thành lực cản.',
   },
 };
 
 // Mô tả con giáp
 export const CON_GIAP_INFO: Record<string, { emoji: string; moTa: string }> = {
-  'Tý':  { emoji: '🐭', moTa: 'Thông minh, nhanh nhẹn, khéo léo và có tài kinh doanh. Nhạy cảm, chu đáo với người thân.' },
-  'Sửu': { emoji: '🐂', moTa: 'Cần cù, kiên trì, đáng tin cậy. Làm việc chăm chỉ và luôn hoàn thành mục tiêu.' },
-  'Dần': { emoji: '🐯', moTa: 'Mạnh mẽ, dũng cảm, có sức hút tự nhiên. Sinh ra để lãnh đạo và chinh phục.' },
-  'Mão': { emoji: '🐰', moTa: 'Khéo léo, tinh tế, nhạy cảm với cái đẹp. Có tài ngoại giao và được nhiều người yêu mến.' },
-  'Thìn': { emoji: '🐲', moTa: 'Tài năng, hoài bão lớn, tự tin và đầy năng lượng. Có khả năng thành công vượt trội.' },
-  'Tỵ':  { emoji: '🐍', moTa: 'Sâu sắc, khôn ngoan, trực giác nhạy bén. Thường có tư duy chiến lược xuất sắc.' },
-  'Ngọ': { emoji: '🐴', moTa: 'Nhiệt huyết, tự do, yêu cuộc sống. Luôn năng động và mang lại khí thế cho mọi người.' },
-  'Mùi': { emoji: '🐑', moTa: 'Hiền lành, nghệ sĩ, giàu cảm xúc. Có tâm hồn nhân hậu và yêu thích sự hài hòa.' },
-  'Thân': { emoji: '🐒', moTa: 'Thông minh, hài hước, sáng tạo và linh hoạt. Giỏi giải quyết vấn đề một cách độc đáo.' },
-  'Dậu': { emoji: '🐓', moTa: 'Cẩn thận, chăm chỉ, có tổ chức. Luôn hoàn thành công việc với chất lượng cao.' },
-  'Tuất': { emoji: '🐕', moTa: 'Trung thành, công bằng, đáng tin cậy. Người bạn đồng hành lý tưởng trong cuộc sống.' },
-  'Hợi': { emoji: '🐷', moTa: 'Chân thành, hào phóng, lạc quan. Mang lại may mắn và niềm vui cho những người xung quanh.' },
+  'Tý':  { emoji: '🐭', moTa: 'Tuổi Tý nhanh trí và nhạy bén — thấy cơ hội sớm, xử lý tình huống khéo, và thường hiểu ý người khác trước khi họ nói hết câu. Cái cần giữ là đừng để nhịp nhanh quá thành vội vàng.' },
+  'Sửu': { emoji: '🐂', moTa: 'Tuổi Sửu bền và chắc — không bùng nhanh nhưng đi được xa. Một khi đã cam kết thì ít khi bỏ giữa chừng, và đó chính là thứ người xung quanh tin tưởng nhất ở bạn.' },
+  'Dần': { emoji: '🐯', moTa: 'Tuổi Dần có năng lượng lớn và cái nhìn dứt khoát — thích đi trước, không ngại thử thách, và dễ kéo người khác theo nhịp của mình. Điều cần cân bằng là biết lúc nào nên giữ lại.' },
+  'Mão': { emoji: '🐰', moTa: 'Tuổi Mão tinh tế và có duyên — không ồn ào nhưng để lại ấn tượng lâu. Xử lý mối quan hệ khéo, biết lúc nào nên nói và lúc nào nên im.' },
+  'Thìn': { emoji: '🐲', moTa: 'Tuổi Thìn đầy khí thế và hoài bão — khi đã muốn thì muốn lớn, khi đã làm thì làm tới cùng. Thử thách không nằm ở việc có đủ sức không, mà là biết chọn đúng việc để dồn sức.' },
+  'Tỵ':  { emoji: '🐍', moTa: 'Tuổi Tỵ sâu và kín — quan sát nhiều trước khi hành động, hiếm khi lộ bài sớm. Trực giác thường đúng, và đó là thứ nên tin tưởng hơn là bỏ qua.' },
+  'Ngọ': { emoji: '🐴', moTa: 'Tuổi Ngọ sống động và thật — cảm xúc bộc lộ rõ, không giỏi che giấu điều mình thích hay ghét. Năng lượng lớn khi vào nhịp, điều cần giữ là sức bền chứ không chỉ sức bùng.' },
+  'Mùi': { emoji: '🐑', moTa: 'Tuổi Mùi nhẹ và ấm — không tranh, không đối đầu, nhưng có khả năng giữ mối quan hệ lâu dài mà ít người làm được. Điểm mạnh lớn nhất lại chính là sự ổn định trong cảm xúc.' },
+  'Thân': { emoji: '🐒', moTa: 'Tuổi Thân linh hoạt và sáng tạo — ít khi bí bách, luôn tìm ra lối đi kể cả khi người khác đã bỏ cuộc. Cái cần chú ý là giữ được hướng đi thay vì đổi quá nhiều vì chán.' },
+  'Dậu': { emoji: '🐓', moTa: 'Tuổi Dậu chỉnh chu và kỹ lưỡng — làm thì làm đến nơi đến chốn, ít khi để sót lỗi nhỏ. Thứ cần cân bằng đôi khi là buông bớt sự hoàn hảo khi không thực sự cần thiết.' },
+  'Tuất': { emoji: '🐕', moTa: 'Tuổi Tuất trực và trung thành — nói thật, giữ lời, không thích vòng vo. Người tin tưởng bạn thường tin rất sâu, và đó là tài sản ít người có được.' },
+  'Hợi': { emoji: '🐷', moTa: 'Tuổi Hợi thoáng và rộng lòng — không giữ thù, không cạnh tranh vô nghĩa, dễ để người khác cảm thấy thoải mái khi ở bên. Bình yên không phải là điểm yếu — đó là cái bạn mang lại cho người xung quanh.' },
 };
 
-// Điểm may mắn hôm nay (giả lập dựa trên ngày + ngũ hành)
-export function getDiemHomNay(ngaySinh: string, nguHanh: string) {
+export function getThongDiepHomNay(conGiap: string, chiNgay: string): DanhGiaThamKhao {
+  const quanHe = getTuongHop(conGiap, chiNgay);
+
+  if (quanHe.loai === 'tam-hop' || quanHe.loai === 'luc-hop') {
+    return {
+      mucDo: 'thuận lợi',
+      tieuDe: `Ngày ${chiNgay} hợp nhịp với tuổi ${conGiap}`,
+      moTa: 'Theo địa chi, ngày và tuổi của bạn thuộc nhóm tương hỗ — lúc tốt để chủ động hơn, đặc biệt với những việc cần phối hợp hoặc cần một bước đẩy mạnh.',
+      mauSac: getDanhGiaColor('thuận lợi'),
+    };
+  }
+
+  if (quanHe.loai === 'tuong-xung') {
+    return {
+      mucDo: 'cần thận trọng',
+      tieuDe: `Ngày ${chiNgay} xung với tuổi ${conGiap}`,
+      moTa: 'Ngày và tuổi của bạn thuộc cặp tương xung — không phải điềm xấu, nhưng là lúc nên giữ nhịp chậm lại, kiểm tra kỹ trước khi quyết định những việc quan trọng.',
+      mauSac: getDanhGiaColor('cần thận trọng'),
+    };
+  }
+
+  return {
+    mucDo: 'trung tính',
+    tieuDe: `Ngày ${chiNgay} không có tín hiệu đặc biệt với tuổi ${conGiap}`,
+    moTa: 'Không có quan hệ địa chi nổi bật giữa ngày và tuổi của bạn hôm nay. Nhịp ngày phụ thuộc nhiều vào bạn hơn là can chi.',
+    mauSac: getDanhGiaColor('trung tính'),
+  };
+}
+
+// Giờ hoàng đạo/hắc đạo dựa theo chi ngày thật (tính từ JD)
+// Bảng hoàng đạo chuẩn: 6 giờ tốt (hoàng đạo) theo chi ngày
+const HOANG_DAO: Record<string, number[]> = {
+  'Tý':   [0, 1, 3, 5, 7, 10],  // Tý,Sửu,Mão,Tỵ,Mùi,Tuất
+  'Sửu':  [2, 3, 5, 6, 8, 11],  // Dần,Mão,Tỵ,Ngọ,Thân,Hợi
+  'Dần':  [4, 5, 7, 8, 10, 1],  // Thìn,Tỵ,Mùi,Thân,Tuất,Sửu
+  'Mão':  [0, 2, 4, 6, 8, 10],  // Tý,Dần,Thìn,Ngọ,Thân,Tuất
+  'Thìn': [1, 2, 4, 6, 9, 11],  // Sửu,Dần,Thìn,Ngọ,Dậu,Hợi
+  'Tỵ':   [1, 4, 6, 7, 9, 10],  // Sửu,Thìn,Ngọ,Mùi,Dậu,Tuất
+  'Ngọ':  [0, 1, 3, 5, 7, 10],  // (= Tý)
+  'Mùi':  [2, 3, 5, 6, 8, 11],  // (= Sửu)
+  'Thân': [4, 5, 7, 8, 10, 1],  // (= Dần)
+  'Dậu':  [0, 2, 4, 6, 8, 10],  // (= Mão)
+  'Tuất': [1, 2, 4, 6, 9, 11],  // (= Thìn)
+  'Hợi':  [1, 4, 6, 7, 9, 10],  // (= Tỵ)
+};
+
+const GIO_LABEL = [
+  'Tý (23h-1h)', 'Sửu (1h-3h)', 'Dần (3h-5h)', 'Mão (5h-7h)',
+  'Thìn (7h-9h)', 'Tỵ (9h-11h)', 'Ngọ (11h-13h)', 'Mùi (13h-15h)',
+  'Thân (15h-17h)', 'Dậu (17h-19h)', 'Tuất (19h-21h)', 'Hợi (21h-23h)',
+];
+
+function getDanhGiaColor(mucDo: MucDoDanhGia): string {
+  if (mucDo === 'thuận lợi') return '#4ade80';
+  if (mucDo === 'cần thận trọng') return '#f87171';
+  return '#facc15';
+}
+
+export function getGioTotXau() {
   const today = new Date();
-  const seed = today.getDate() + today.getMonth() + ngaySinh.length + nguHanh.length;
-  const mayMan = 5 + (seed % 5);
-  const taiLoc = 4 + ((seed + 2) % 6);
-  const tinhDuyen = 4 + ((seed + 4) % 6);
-  return { mayMan, taiLoc, tinhDuyen };
+  // Tính chi ngày hôm nay từ JD
+  const jd = jdFromDate(today.getDate(), today.getMonth() + 1, today.getFullYear());
+  const chiNgayHom = DIA_CHI[mod(jd + 1, 12)];
+  const hoangDaoIdx = HOANG_DAO[chiNgayHom] ?? [0, 2, 4, 6, 8, 10];
+  const gioTot = hoangDaoIdx.map(i => GIO_LABEL[i]);
+  const gioXau = [0,1,2,3,4,5,6,7,8,9,10,11]
+    .filter(i => !hoangDaoIdx.includes(i))
+    .map(i => GIO_LABEL[i]);
+  return { gioTot, gioXau, chiNgay: chiNgayHom };
+}
+
+// Màu, số, hướng may mắn theo ngũ hành
+export const MAY_MAN_INFO: Record<string, {
+  mauSac: { ten: string; hex: string }[];
+  conSo: number[];
+  huong: string[];
+}> = {
+  'Kim': {
+    mauSac: [{ ten: 'Trắng', hex: '#f1f5f9' }, { ten: 'Vàng', hex: '#fbbf24' }, { ten: 'Bạc', hex: '#94a3b8' }],
+    conSo: [6, 7, 8],
+    huong: ['Tây', 'Tây Bắc'],
+  },
+  'Mộc': {
+    mauSac: [{ ten: 'Xanh lá', hex: '#4ade80' }, { ten: 'Xanh cyan', hex: '#22d3ee' }, { ten: 'Nâu', hex: '#a16207' }],
+    conSo: [3, 4, 8],
+    huong: ['Đông', 'Đông Nam'],
+  },
+  'Thủy': {
+    mauSac: [{ ten: 'Đen', hex: '#475569' }, { ten: 'Xanh dương', hex: '#60a5fa' }, { ten: 'Xám', hex: '#9ca3af' }],
+    conSo: [1, 6, 7],
+    huong: ['Bắc', 'Đông Bắc'],
+  },
+  'Hỏa': {
+    mauSac: [{ ten: 'Đỏ', hex: '#f87171' }, { ten: 'Hồng', hex: '#f472b6' }, { ten: 'Tím', hex: '#c084fc' }],
+    conSo: [2, 7, 9],
+    huong: ['Nam', 'Đông Nam'],
+  },
+  'Thổ': {
+    mauSac: [{ ten: 'Vàng', hex: '#fbbf24' }, { ten: 'Cam', hex: '#fb923c' }, { ten: 'Nâu', hex: '#92400e' }],
+    conSo: [2, 5, 8],
+    huong: ['Trung tâm', 'Tây Nam'],
+  },
+};
+
+// Vận hạn tháng theo ngũ hành và tháng dương lịch
+export function getVanHanThang(nguHanh: string, thangAm?: number): VanHanThangInfo {
+  const now = new Date();
+  const thangHienTai =
+    thangAm ?? solarToLunar(now.getDate(), now.getMonth() + 1, now.getFullYear())[1];
+  const chiIdx = mod(thangHienTai + 1, 12);
+  const nguHanhThang = CHI_THANG_NGU_HANH[chiIdx];
+  const base = getDanhGiaNguHanh(nguHanh, nguHanhThang);
+
+  return {
+    thang: thangHienTai,
+    nguHanhThang,
+    ...base,
+    mauSac: getDanhGiaColor(base.mucDo),
+  };
+}
+
+// Tương hợp con giáp (tam hợp, lục hợp, tương xung, tương hại)
+const TAM_HOP: string[][] = [
+  ['Thân', 'Tý', 'Thìn'],
+  ['Dần', 'Ngọ', 'Tuất'],
+  ['Tỵ', 'Dậu', 'Sửu'],
+  ['Hợi', 'Mão', 'Mùi'],
+];
+const LUC_HOP: [string, string][] = [
+  ['Tý', 'Sửu'], ['Dần', 'Hợi'], ['Mão', 'Tuất'],
+  ['Thìn', 'Dậu'], ['Tỵ', 'Thân'], ['Ngọ', 'Mùi'],
+];
+const TUONG_XUNG: [string, string][] = [
+  ['Tý', 'Ngọ'], ['Sửu', 'Mùi'], ['Dần', 'Thân'],
+  ['Mão', 'Dậu'], ['Thìn', 'Tuất'], ['Tỵ', 'Hợi'],
+];
+
+export function getTuongHop(chi1: string, chi2: string): {
+  loai: 'tam-hop' | 'luc-hop' | 'tuong-xung' | 'trung-tinh';
+  xepLoai: string; moTa: string; mauSac: string;
+} {
+  const isTamHop = TAM_HOP.some(g => g.includes(chi1) && g.includes(chi2));
+  const isLucHop = LUC_HOP.some(([a, b]) => (a === chi1 && b === chi2) || (a === chi2 && b === chi1));
+  const isXung = TUONG_XUNG.some(([a, b]) => (a === chi1 && b === chi2) || (a === chi2 && b === chi1));
+
+  if (isTamHop) return {
+    loai: 'tam-hop', xepLoai: 'Tam hợp',
+    moTa: 'Hai tuổi cùng nhóm tam hợp — theo quan niệm truyền thống, đây là cặp có xu hướng đồng điệu và bổ trợ nhau trong dài hạn, dễ tạo nền tảng chung.',
+    mauSac: '#4ade80',
+  };
+  if (isLucHop) return {
+    loai: 'luc-hop', xepLoai: 'Lục hợp',
+    moTa: 'Cặp lục hợp — hai tuổi này có xu hướng bổ sung cho nhau khá tự nhiên, ít xung đột nhịp điệu hơn so với nhiều cặp khác.',
+    mauSac: '#60a5fa',
+  };
+  if (isXung) return {
+    loai: 'tuong-xung', xepLoai: 'Tương xung',
+    moTa: 'Cặp tương xung — truyền thống cho rằng hai tuổi này dễ va chạm nhịp điệu hơn. Không phải định mệnh, nhưng cần thêm sự thấu hiểu và kiên nhẫn từ cả hai phía.',
+    mauSac: '#f87171',
+  };
+  return {
+    loai: 'trung-tinh',
+    xepLoai: 'Trung tính',
+    moTa: 'Hai tuổi không thuộc nhóm tam hợp, lục hợp hay tương xung — mối quan hệ hoàn toàn phụ thuộc vào con người, không phải tuổi tác.',
+    mauSac: '#facc15',
+  };
+}
+
+// Ngũ hành theo chi tháng âm lịch
+// Tháng 1 âm = Dần (Mộc), tháng 2 = Mão (Mộc), tháng 3 = Thìn (Thổ)...
+const CHI_THANG_NGU_HANH: string[] = [
+  'Thủy', // Tý - tháng 11 âm → nhưng ta dùng index 0-11 cho tháng 1-12 âm
+  'Thổ',  // Sửu - tháng 12 âm
+  'Mộc',  // Dần - tháng 1 âm
+  'Mộc',  // Mão - tháng 2 âm
+  'Thổ',  // Thìn - tháng 3 âm
+  'Hỏa',  // Tỵ - tháng 4 âm
+  'Hỏa',  // Ngọ - tháng 5 âm
+  'Thổ',  // Mùi - tháng 6 âm
+  'Kim',  // Thân - tháng 7 âm
+  'Kim',  // Dậu - tháng 8 âm
+  'Thổ',  // Tuất - tháng 9 âm
+  'Thủy', // Hợi - tháng 10 âm
+];
+
+// Quan hệ ngũ hành: [sinh, bị sinh, khắc, bị khắc]
+const TUONG_SINH_KHAC: Record<string, { sinh: string; biSinh: string; khac: string; biKhac: string }> = {
+  'Mộc': { sinh: 'Hỏa', biSinh: 'Thủy', khac: 'Thổ', biKhac: 'Kim' },
+  'Hỏa': { sinh: 'Thổ', biSinh: 'Mộc', khac: 'Kim', biKhac: 'Thủy' },
+  'Thổ': { sinh: 'Kim', biSinh: 'Hỏa', khac: 'Thủy', biKhac: 'Mộc' },
+  'Kim': { sinh: 'Thủy', biSinh: 'Thổ', khac: 'Mộc', biKhac: 'Hỏa' },
+  'Thủy': { sinh: 'Mộc', biSinh: 'Kim', khac: 'Hỏa', biKhac: 'Thổ' },
+};
+
+function getDanhGiaNguHanh(nguHanhNguoi: string, nguHanhThang: string): Omit<DanhGiaThamKhao, 'mauSac'> {
+  if (nguHanhNguoi === nguHanhThang) {
+    return {
+      mucDo: 'thuận lợi',
+      tieuDe: 'Tháng cùng ngũ hành với bản mệnh',
+      moTa: 'Ngũ hành tháng và bản mệnh trùng nhau — nền tảng ổn, hợp để giữ nhịp đều và tiếp tục các kế hoạch đang có.',
+    };
+  }
+  const rel = TUONG_SINH_KHAC[nguHanhNguoi];
+  if (!rel) {
+    return {
+      mucDo: 'trung tính',
+      tieuDe: 'Tháng trung tính',
+      moTa: 'Không có tín hiệu ngũ hành nổi bật tháng này — mọi thứ phụ thuộc vào cách bạn điều phối hơn là yếu tố bên ngoài.',
+    };
+  }
+  if (nguHanhThang === rel.biSinh) {
+    return {
+      mucDo: 'thuận lợi',
+      tieuDe: 'Tháng tương sinh cho bản mệnh',
+      moTa: 'Ngũ hành tháng đang sinh cho bản mệnh — theo lý ngũ hành, đây là lúc năng lượng được bồi thêm, hợp để đẩy nhanh những việc đang dang dở.',
+    };
+  }
+  if (nguHanhThang === rel.sinh) {
+    return {
+      mucDo: 'trung tính',
+      tieuDe: 'Bản mệnh đang sinh xuất',
+      moTa: 'Tháng này bạn có xu hướng cho đi nhiều hơn nhận lại — hợp để giữ nhịp đều, tránh dàn trải sức lực quá mỏng.',
+    };
+  }
+  if (nguHanhThang === rel.biKhac) {
+    return {
+      mucDo: 'cần thận trọng',
+      tieuDe: 'Tháng có yếu tố khắc bản mệnh',
+      moTa: 'Ngũ hành tháng khắc bản mệnh — hợp để phòng thủ hơn tấn công: kiểm tra kỹ hơn, tránh quyết định vội, chú ý sức bền.',
+    };
+  }
+  if (nguHanhThang === rel.khac) {
+    return {
+      mucDo: 'trung tính',
+      tieuDe: 'Bản mệnh đang ở thế chủ động',
+      moTa: 'Bản mệnh đang khắc ngũ hành tháng — có thể chủ động, nhưng nên phân bổ sức lực hợp lý và tránh ép quá mức.',
+    };
+  }
+  return {
+    mucDo: 'trung tính',
+    tieuDe: 'Tháng trung tính',
+    moTa: 'Không có tín hiệu ngũ hành nổi bật tháng này — nhịp phụ thuộc nhiều vào cách bạn điều phối hơn là yếu tố bên ngoài.',
+  };
+}
+
+export function getVanHanNam(nguHanh: string): VanHanThangInfo[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const thangAm = i + 1;
+    const chiIdx = mod(thangAm + 1, 12); // Dần=2, Mão=3, ...
+    const nguHanhThang = CHI_THANG_NGU_HANH[chiIdx];
+    const base = getDanhGiaNguHanh(nguHanh, nguHanhThang);
+
+    return {
+      thang: thangAm,
+      nguHanhThang,
+      ...base,
+      mauSac: getDanhGiaColor(base.mucDo),
+    };
+  });
 }
