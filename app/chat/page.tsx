@@ -186,13 +186,14 @@ export default function ChatPage() {
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
               placeholder="Hỏi về vận hạn, tình duyên, công danh..."
               rows={1}
-              className="flex-1 resize-none text-sm py-3 px-4 rounded-2xl outline-none"
+              className="flex-1 resize-none py-3 px-4 rounded-2xl outline-none"
               style={{
                 background: "rgba(255,255,255,0.07)",
                 border: "1px solid rgba(168,85,247,0.25)",
                 color: "white",
                 maxHeight: 100,
                 colorScheme: "dark",
+                fontSize: 16,
               }}
             />
             <button
