@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { callGemini } from "@/lib/gemini";
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { allowed } = rateLimit(ip, "chat", 15, 60_000); // 15 req/phút/IP
+  const { allowed } = rateLimit(ip, "chat", 15, 60_000);
   if (!allowed) {
     return NextResponse.json(
       { error: "Bạn đang gửi quá nhiều tin nhắn. Vui lòng chờ một chút rồi thử lại." },
@@ -42,30 +43,13 @@ Nguyên tắc trả lời:
   }));
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 1024,
-            thinkingConfig: { thinkingBudget: 0 },
-          },
-        }),
-      }
-    );
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error?.message || "Gemini error");
-
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "Xin lỗi, tôi không thể trả lời lúc này.";
+    const reply = await callGemini(systemPrompt, contents, { temperature: 0.8, maxOutputTokens: 1024 });
     return NextResponse.json({ reply });
   } catch (e) {
     console.error("Chat AI error:", e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Không thể kết nối AI lúc này." },
+      { status: 500 }
+    );
   }
 }
