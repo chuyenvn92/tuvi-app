@@ -55,6 +55,7 @@ export default function Onboarding() {
     outline: "none",
     width: "100%",
     fontSize: 15,
+    boxSizing: "border-box" as const,
   };
 
   return (
