@@ -113,17 +113,8 @@ export default function Onboarding() {
         {/* Ngày sinh */}
         <div className="mb-4">
           <label className="block text-xs mb-1.5 ml-1" style={{ color: "#9d74cc" }}>Ngày sinh</label>
-          <div className="relative">
-            <input type="date" name="ngaySinh" value={form.ngaySinh}
-              onChange={handleChange}
-              style={{ ...inputStyle, colorScheme: "dark", paddingRight: 40 }} />
-            {!form.ngaySinh && (
-              <div className="absolute inset-0 flex items-center px-4 pointer-events-none"
-                style={{ color: "#6b4f8a", fontSize: 14 }}>
-                📅 Chọn ngày sinh
-              </div>
-            )}
-          </div>
+          <input type="date" name="ngaySinh" value={form.ngaySinh}
+            onChange={handleChange} style={{ ...inputStyle, colorScheme: "dark" }} />
         </div>
 
         {/* Giờ sinh */}
