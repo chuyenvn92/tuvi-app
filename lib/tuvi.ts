@@ -18,7 +18,7 @@ export function jdFromDate(dd: number, mm: number, yy: number): number {
 // Tính Can Chi của năm, tháng, ngày, giờ sinh
 // ============================================================
 export interface TruCanChi { can: string; chi: string; }
-export type MucDoDanhGia = 'thuận lợi' | 'trung tính' | 'cần thận trọng';
+export type MucDoDanhGia = 'Hanh thông' | 'Bình ổn' | 'Cần lưu ý';
 
 export interface DanhGiaThamKhao {
   mucDo: MucDoDanhGia;
@@ -323,27 +323,27 @@ export function getThongDiepHomNay(conGiap: string, chiNgay: string): DanhGiaTha
 
   if (quanHe.loai === 'tam-hop' || quanHe.loai === 'luc-hop') {
     return {
-      mucDo: 'thuận lợi',
+      mucDo: 'Hanh thông',
       tieuDe: `Ngày ${chiNgay} hợp nhịp với tuổi ${conGiap}`,
       moTa: 'Theo địa chi, ngày và tuổi của bạn thuộc nhóm tương hỗ — lúc tốt để chủ động hơn, đặc biệt với những việc cần phối hợp hoặc cần một bước đẩy mạnh.',
-      mauSac: getDanhGiaColor('thuận lợi'),
+      mauSac: getDanhGiaColor('Hanh thông'),
     };
   }
 
   if (quanHe.loai === 'tuong-xung') {
     return {
-      mucDo: 'cần thận trọng',
+      mucDo: 'Cần lưu ý',
       tieuDe: `Ngày ${chiNgay} xung với tuổi ${conGiap}`,
       moTa: 'Ngày và tuổi của bạn thuộc cặp tương xung — không phải điềm xấu, nhưng là lúc nên giữ nhịp chậm lại, kiểm tra kỹ trước khi quyết định những việc quan trọng.',
-      mauSac: getDanhGiaColor('cần thận trọng'),
+      mauSac: getDanhGiaColor('Cần lưu ý'),
     };
   }
 
   return {
-    mucDo: 'trung tính',
+    mucDo: 'Bình ổn',
     tieuDe: `Ngày ${chiNgay} không có tín hiệu đặc biệt với tuổi ${conGiap}`,
     moTa: 'Không có quan hệ địa chi nổi bật giữa ngày và tuổi của bạn hôm nay. Nhịp ngày phụ thuộc nhiều vào bạn hơn là can chi.',
-    mauSac: getDanhGiaColor('trung tính'),
+    mauSac: getDanhGiaColor('Bình ổn'),
   };
 }
 
@@ -371,8 +371,8 @@ const GIO_LABEL = [
 ];
 
 function getDanhGiaColor(mucDo: MucDoDanhGia): string {
-  if (mucDo === 'thuận lợi') return '#4ade80';
-  if (mucDo === 'cần thận trọng') return '#f87171';
+  if (mucDo === 'Hanh thông') return '#4ade80';
+  if (mucDo === 'Cần lưu ý') return '#f87171';
   return '#facc15';
 }
 
@@ -480,7 +480,7 @@ export function getTuongHop(chi1: string, chi2: string): {
   };
   return {
     loai: 'trung-tinh',
-    xepLoai: 'Trung tính',
+    xepLoai: 'Bình thường',
     moTa: 'Hai tuổi không thuộc nhóm tam hợp, lục hợp hay tương xung — mối quan hệ hoàn toàn phụ thuộc vào con người, không phải tuổi tác.',
     mauSac: '#facc15',
   };
@@ -515,7 +515,7 @@ const TUONG_SINH_KHAC: Record<string, { sinh: string; biSinh: string; khac: stri
 function getDanhGiaNguHanh(nguHanhNguoi: string, nguHanhThang: string): Omit<DanhGiaThamKhao, 'mauSac'> {
   if (nguHanhNguoi === nguHanhThang) {
     return {
-      mucDo: 'thuận lợi',
+      mucDo: 'Hanh thông',
       tieuDe: 'Tháng cùng ngũ hành với bản mệnh',
       moTa: 'Ngũ hành tháng và bản mệnh trùng nhau — nền tảng ổn, hợp để giữ nhịp đều và tiếp tục các kế hoạch đang có.',
     };
@@ -523,42 +523,42 @@ function getDanhGiaNguHanh(nguHanhNguoi: string, nguHanhThang: string): Omit<Dan
   const rel = TUONG_SINH_KHAC[nguHanhNguoi];
   if (!rel) {
     return {
-      mucDo: 'trung tính',
-      tieuDe: 'Tháng trung tính',
+      mucDo: 'Bình ổn',
+      tieuDe: 'Tháng bình ổn',
       moTa: 'Không có tín hiệu ngũ hành nổi bật tháng này — mọi thứ phụ thuộc vào cách bạn điều phối hơn là yếu tố bên ngoài.',
     };
   }
   if (nguHanhThang === rel.biSinh) {
     return {
-      mucDo: 'thuận lợi',
+      mucDo: 'Hanh thông',
       tieuDe: 'Tháng tương sinh cho bản mệnh',
       moTa: 'Ngũ hành tháng đang sinh cho bản mệnh — theo lý ngũ hành, đây là lúc năng lượng được bồi thêm, hợp để đẩy nhanh những việc đang dang dở.',
     };
   }
   if (nguHanhThang === rel.sinh) {
     return {
-      mucDo: 'trung tính',
+      mucDo: 'Bình ổn',
       tieuDe: 'Bản mệnh đang sinh xuất',
       moTa: 'Tháng này bạn có xu hướng cho đi nhiều hơn nhận lại — hợp để giữ nhịp đều, tránh dàn trải sức lực quá mỏng.',
     };
   }
   if (nguHanhThang === rel.biKhac) {
     return {
-      mucDo: 'cần thận trọng',
+      mucDo: 'Cần lưu ý',
       tieuDe: 'Tháng có yếu tố khắc bản mệnh',
       moTa: 'Ngũ hành tháng khắc bản mệnh — hợp để phòng thủ hơn tấn công: kiểm tra kỹ hơn, tránh quyết định vội, chú ý sức bền.',
     };
   }
   if (nguHanhThang === rel.khac) {
     return {
-      mucDo: 'trung tính',
+      mucDo: 'Bình ổn',
       tieuDe: 'Bản mệnh đang ở thế chủ động',
       moTa: 'Bản mệnh đang khắc ngũ hành tháng — có thể chủ động, nhưng nên phân bổ sức lực hợp lý và tránh ép quá mức.',
     };
   }
   return {
-    mucDo: 'trung tính',
-    tieuDe: 'Tháng trung tính',
+    mucDo: 'Bình ổn',
+    tieuDe: 'Tháng bình ổn',
     moTa: 'Không có tín hiệu ngũ hành nổi bật tháng này — nhịp phụ thuộc nhiều vào cách bạn điều phối hơn là yếu tố bên ngoài.',
   };
 }
