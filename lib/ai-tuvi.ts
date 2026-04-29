@@ -1,3 +1,4 @@
+import { callGemini } from "@/lib/gemini";
 import type { TruCanChi } from "@/lib/tuvi";
 
 interface TuviBanMenh {
@@ -289,13 +290,98 @@ function buildThang(payload: TuviPayload): AIThang {
   };
 }
 
+function getTodayCanChi() {
+  const today = new Date();
+  const dd = today.getDate(), mm = today.getMonth() + 1, yy = today.getFullYear();
+  const THIEN_CAN_L = ['Giáp','Ất','Bính','Đinh','Mậu','Kỷ','Canh','Tân','Nhâm','Quý'];
+  const DIA_CHI_L = ['Tý','Sửu','Dần','Mão','Thìn','Tỵ','Ngọ','Mùi','Thân','Dậu','Tuất','Hợi'];
+  const fn = (v: number, b: number) => ((v % b) + b) % b;
+  const a = Math.floor((14 - mm) / 12);
+  const y = yy + 4800 - a;
+  const mv = mm + 12 * a - 3;
+  let jd = dd + Math.floor((153 * mv + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+  if (jd < 2299161) jd = dd + Math.floor((153 * mv + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
+  return {
+    ngay: `${dd}/${mm}/${yy}`,
+    canChiNgay: `${THIEN_CAN_L[fn(jd + 9, 10)]} ${DIA_CHI_L[fn(jd + 1, 12)]}`,
+    canChiNam: `${THIEN_CAN_L[fn(yy - 4, 10)]} ${DIA_CHI_L[fn(yy - 4, 12)]}`,
+  };
+}
+
+function parseGeminiJSON<T>(raw: string): T | null {
+  try { return JSON.parse(raw.trim()) as T; } catch {}
+  const md = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (md) { try { return JSON.parse(md[1].trim()) as T; } catch {} }
+  const obj = raw.match(/\{[\s\S]*\}/);
+  if (obj) { try { return JSON.parse(obj[0]) as T; } catch {} }
+  return null;
+}
+
+const TUVI_SYSTEM_PROMPT = `Bạn là chuyên gia tử vi theo phương pháp Tứ Trụ Bát Tự.
+
+Ngũ hành tương sinh: Mộc→Hỏa→Thổ→Kim→Thủy→Mộc
+Ngũ hành tương khắc: Mộc khắc Thổ, Thổ khắc Thủy, Thủy khắc Hỏa, Hỏa khắc Kim, Kim khắc Mộc
+Can ngũ hành: Giáp/Ất=Mộc, Bính/Đinh=Hỏa, Mậu/Kỷ=Thổ, Canh/Tân=Kim, Nhâm/Quý=Thủy
+Chi ngũ hành: Dần/Mão=Mộc, Tỵ/Ngọ=Hỏa, Thìn/Tuất/Sửu/Mùi=Thổ, Thân/Dậu=Kim, Tý/Hợi=Thủy
+
+Cách phân tích: xác định ngũ hành của can chi hôm nay → so với bản mệnh → tương sinh=thuận, tương khắc=cần thận trọng, trùng=bổ trợ.
+Viết tiếng Việt, tự nhiên, không huyền bí. Chỉ trả về JSON thuần túy, không markdown.`;
+
+async function buildHomNayWithGemini(payload: TuviPayload): Promise<AIHomNay | null> {
+  const today = getTodayCanChi();
+  const { mayMan, taiLoc, tinhDuyen } = buildScoreTriplet(payload);
+  const prompt = `Hôm nay ${today.ngay}, ngày can chi ${today.canChiNgay}, năm ${today.canChiNam}.
+
+Người xem:
+- Tên: ${payload.hoTen}
+- Tứ Trụ: Năm ${payload.tuTru.nam.can} ${payload.tuTru.nam.chi} | Tháng ${payload.tuTru.thang.can} ${payload.tuTru.thang.chi} | Ngày ${payload.tuTru.ngay.can} ${payload.tuTru.ngay.chi} | Giờ ${payload.tuTru.gio.can} ${payload.tuTru.gio.chi}
+- Bản mệnh: ${payload.banMenh.nguHanh} (${payload.banMenh.tenGoi}), tuổi ${payload.conGiap}, cung ${payload.cungMenh}
+
+Điểm số đã tính: May mắn ${mayMan}/10, Tài lộc ${taiLoc}/10, Tình duyên ${tinhDuyen}/10.
+
+Dựa trên quan hệ ngũ hành giữa can chi hôm nay và Tứ Trụ, hãy trả về JSON:
+{"tomTat":"1 câu tóm tắt vận hạn hôm nay (≤20 từ, nhắc tên ${payload.hoTen})","chiTiet":"2-3 câu phân tích sâu, tham chiếu can chi cụ thể","luuY":"1 câu lưu ý thực tế và tích cực"}`;
+
+  try {
+    const raw = await callGemini(TUVI_SYSTEM_PROMPT, [{ role: "user", parts: [{ text: prompt }] }], { temperature: 0.7, maxOutputTokens: 400 });
+    const parsed = parseGeminiJSON<{ tomTat: string; chiTiet: string; luuY: string }>(raw);
+    if (parsed?.tomTat && parsed?.chiTiet && parsed?.luuY) {
+      return { ...parsed, mayMan, taiLoc, tinhDuyen };
+    }
+  } catch {}
+  return null;
+}
+
+async function buildThangWithGemini(payload: TuviPayload): Promise<AIThang | null> {
+  const today = getTodayCanChi();
+  const prompt = `Hôm nay ${today.ngay}, năm ${today.canChiNam}.
+
+Người xem:
+- Tên: ${payload.hoTen}
+- Tứ Trụ: Năm ${payload.tuTru.nam.can} ${payload.tuTru.nam.chi} | Tháng ${payload.tuTru.thang.can} ${payload.tuTru.thang.chi} | Ngày ${payload.tuTru.ngay.can} ${payload.tuTru.ngay.chi} | Giờ ${payload.tuTru.gio.can} ${payload.tuTru.gio.chi}
+- Bản mệnh: ${payload.banMenh.nguHanh} (${payload.banMenh.tenGoi}), tuổi ${payload.conGiap}, cung ${payload.cungMenh}
+
+Phân tích vận hạn tháng này dựa trên Tứ Trụ và bản mệnh. Trả về JSON:
+{"taiLoc":"1-2 câu tài lộc tháng này (dựa trên ngũ hành cụ thể)","sucKhoe":"1-2 câu sức khỏe","tinhCam":"1-2 câu tình cảm","congDanh":"1-2 câu công danh sự nghiệp"}`;
+
+  try {
+    const raw = await callGemini(TUVI_SYSTEM_PROMPT, [{ role: "user", parts: [{ text: prompt }] }], { temperature: 0.7, maxOutputTokens: 400 });
+    const parsed = parseGeminiJSON<AIThang>(raw);
+    if (parsed?.taiLoc && parsed?.sucKhoe && parsed?.tinhCam && parsed?.congDanh) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
 export async function generateTuviAI<TLoai extends TuviLoai>(
   payload: TuviPayload & { loai: TLoai },
   _apiKey?: string
 ): Promise<TuviAIResultMap[TLoai]> {
-  const result = payload.loai === "homNay"
-    ? buildHomNay(payload)
-    : buildThang(payload);
-
+  if (payload.loai === "homNay") {
+    const result = await buildHomNayWithGemini(payload) ?? buildHomNay(payload);
+    return result as TuviAIResultMap[TLoai];
+  }
+  const result = await buildThangWithGemini(payload) ?? buildThang(payload);
   return result as TuviAIResultMap[TLoai];
 }

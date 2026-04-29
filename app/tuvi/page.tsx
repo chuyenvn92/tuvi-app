@@ -156,6 +156,7 @@ export default function TuviPage() {
   const [aiThang, setAiThang] = useState<AIThang | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -216,6 +217,25 @@ export default function TuviPage() {
 
   if (!profile || !tuvi) return null;
 
+  function handleShare() {
+    if (!profile || !tuvi) return;
+    const today = new Date();
+    const todayStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+    const scoreText = aiHomNay
+      ? `🍀 May mắn ${aiHomNay.mayMan}/10 | 💰 Tài lộc ${aiHomNay.taiLoc}/10 | ❤️ Tình duyên ${aiHomNay.tinhDuyen}/10`
+      : `Tuổi ${tuvi.conGiap} • Mệnh ${tuvi.banMenh.nguHanh}`;
+    const summaryLine = aiHomNay ? `\n"${aiHomNay.tomTat}"` : "";
+    const text = `✨ Tử vi của ${profile.hoTen} hôm nay (${todayStr})\n${scoreText}${summaryLine}\n\nXem tử vi của bạn: ${window.location.origin}`;
+    if (typeof navigator.share === "function") {
+      navigator.share({ title: "Tử Vi AI", text });
+    } else {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  }
+
   const date = new Date(profile.ngaySinh);
   const nguHanhInfo = NGU_HANH_INFO[tuvi.banMenh.nguHanh];
   const conGiapInfo = CON_GIAP_INFO[tuvi.conGiap];
@@ -236,7 +256,11 @@ export default function TuviPage() {
           ← Sửa
         </button>
         <span className="font-bold" style={{ color: "#d8b4fe" }}>☯️ Tử Vi</span>
-        <div style={{ width: 56 }} />
+        <button onClick={handleShare}
+          className="text-sm px-3 py-1.5 rounded-xl transition-all"
+          style={{ color: copied ? "#4ade80" : "#9b7fc7", background: "rgba(255,255,255,0.05)", border: `1px solid ${copied ? "rgba(74,222,128,0.4)" : "rgba(168,85,247,0.2)"}` }}>
+          {copied ? "✓ Đã sao chép" : "Chia sẻ"}
+        </button>
       </div>
 
       {/* Hero card */}
