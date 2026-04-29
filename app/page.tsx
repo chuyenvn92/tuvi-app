@@ -38,8 +38,8 @@ export default function Onboarding() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.hoTen || !form.ngaySinh || !form.gioSinh) {
-      setError("Vui lòng điền đầy đủ thông tin.");
+    if (!form.hoTen || !form.ngaySinh) {
+      setError("Vui lòng điền họ tên và ngày sinh.");
       return;
     }
     localStorage.setItem("tuvi_profile", JSON.stringify(form));
@@ -65,10 +65,14 @@ export default function Onboarding() {
 
       {/* Logo */}
       <div className="mb-10 text-center relative z-10">
-        <div className="relative inline-block">
-          <div className="text-6xl mb-3" style={{ filter: "drop-shadow(0 0 20px rgba(168,85,247,0.8))" }}>☯️</div>
-          <div className="absolute inset-0 rounded-full blur-2xl opacity-30"
-            style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
+        <div className="relative inline-flex items-center justify-center mb-3">
+          <div style={{
+            width: 80, height: 80, borderRadius: "50%",
+            background: "linear-gradient(135deg, #6d28d9, #a855f7)",
+            boxShadow: "0 0 32px rgba(168,85,247,0.6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 44, lineHeight: 1,
+          }}>☯️</div>
         </div>
         <h1 className="text-4xl font-bold tracking-wide"
           style={{ background: "linear-gradient(135deg, #e9d5ff, #a855f7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
@@ -119,7 +123,7 @@ export default function Onboarding() {
 
         {/* Giờ sinh */}
         <div className="mb-5">
-          <label className="block text-xs mb-1.5 ml-1" style={{ color: "#9d74cc" }}>Giờ sinh</label>
+          <label className="block text-xs mb-1.5 ml-1" style={{ color: "#9d74cc" }}>Giờ sinh <span style={{ color: "#5a3d7a" }}>(không bắt buộc)</span></label>
           <select name="gioSinh" value={form.gioSinh} onChange={handleChange}
             style={{ ...inputStyle, colorScheme: "dark" }}>
             <option value="">-- Chọn giờ sinh --</option>
