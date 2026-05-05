@@ -14,13 +14,21 @@ export async function POST(req: NextRequest) {
 
   const { hoTen, tuTru, banMenh, conGiap, cungMenh, loai } = await req.json();
 
+  const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
+
   try {
     const result = await generateTuviAI(
       { hoTen, tuTru, banMenh, conGiap, cungMenh, loai },
     );
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: corsHeaders });
   } catch (e) {
     console.error("AI error:", e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500, headers: corsHeaders });
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' },
+  });
 }
