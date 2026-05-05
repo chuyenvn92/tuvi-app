@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   solarToLunar, getCanChiNam, getBanMenh, getCungMenh, getTuTru,
   getThongDiepHomNay, getGioTotXau, getVanHanThang,
+  getThanSatHomNay, getGioChiTiet,
   NGU_HANH_INFO, CON_GIAP_INFO, MAY_MAN_INFO,
   type DanhGiaThamKhao, type VanHanThangInfo, type TruCanChi,
+  type ThanSat, type GioChiTiet,
 } from "@/lib/tuvi";
 import type { AIHomNay, AIThang, TuviLoai, TuviPayload } from "@/lib/ai-tuvi";
 import { supabase, signInWithGoogle, signOut, saveProfileToCloud, loadProfileFromCloud } from "@/lib/supabase";
@@ -20,7 +22,9 @@ interface TuviData {
   tuTru: { nam: TruCanChi; thang: TruCanChi; ngay: TruCanChi; gio: TruCanChi };
   thongDiepHomNay: DanhGiaThamKhao;
   thangAm: number; namAm: number;
-  gioTot: string[]; gioXau: string[]; chiNgay: string;
+  gioTot: string[]; gioXau: string[]; chiNgay: string; canNgay: string;
+  thanSat: ThanSat[];
+  gioChiTiet: GioChiTiet[];
   vanHan: VanHanThangInfo;
 }
 
@@ -38,7 +42,7 @@ function tinhTuvi(p: Profile): TuviData {
   const [, thangAm, namAm] = solarToLunar(d.getDate(), d.getMonth() + 1, d.getFullYear());
   const { canChi, chi } = getCanChiNam(namAm);
   const banMenh = getBanMenh(namAm);
-  const { gioTot, gioXau, chiNgay } = getGioTotXau();
+  const { gioTot, gioXau, chiNgay, canNgay } = getGioTotXau();
   const cungMenh = getCungMenh(thangAm, p.gioSinh);
   const tuTru = getTuTru(d.getDate(), d.getMonth() + 1, d.getFullYear(), p.gioSinh, thangAm, namAm);
   return {
@@ -46,7 +50,9 @@ function tinhTuvi(p: Profile): TuviData {
     cungMenh,
     tuTru,
     thongDiepHomNay: getThongDiepHomNay(chi, chiNgay),
-    thangAm, namAm, gioTot, gioXau, chiNgay,
+    thangAm, namAm, gioTot, gioXau, chiNgay, canNgay,
+    thanSat: getThanSatHomNay(tuTru, canNgay, chiNgay),
+    gioChiTiet: getGioChiTiet(banMenh.nguHanh, chiNgay),
     vanHan: getVanHanThang(banMenh.nguHanh, thangAm),
   };
 }
@@ -443,31 +449,69 @@ export default function TuviPage() {
           </div>
         </Card>
 
-        {/* Giờ tốt / xấu */}
+        {/* Lịch giờ hôm nay — cá nhân hóa */}
         <Card accent="#22d3ee">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold" style={{ color: "#d8b4fe" }}>🕐 Giờ hoàng đạo hôm nay</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold" style={{ color: "#d8b4fe" }}>🕐 Lịch giờ hôm nay</h2>
             <span className="text-xs px-2 py-1 rounded-full" style={{ background: "rgba(34,211,238,0.1)", color: "#22d3ee" }}>
-              Ngày {tuvi.chiNgay}
+              {tuvi.canNgay} {tuvi.chiNgay} • Mệnh {tuvi.banMenh.nguHanh}
             </span>
           </div>
-          <div className="flex gap-3">
-            <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)" }}>
-              <p className="text-xs font-medium mb-2" style={{ color: "#4ade80" }}>✅ Giờ tốt</p>
-              {tuvi.gioTot.map(g => (
-                <p key={g} className="text-xs py-1" style={{ color: "#c4b0e0" }}>{g}</p>
+
+          {/* Thần sát */}
+          {tuvi.thanSat.length > 0 && (
+            <div className="flex flex-col gap-2 mb-4">
+              {tuvi.thanSat.map(ts => (
+                <div key={ts.ten} className="flex gap-2.5 items-start rounded-xl p-3"
+                  style={{
+                    background: ts.loai === 'tot' ? 'rgba(74,222,128,0.07)' : 'rgba(248,113,113,0.07)',
+                    border: `1px solid ${ts.loai === 'tot' ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                  }}>
+                  <span className="text-base leading-none mt-0.5">{ts.emoji}</span>
+                  <div>
+                    <p className="text-xs font-bold mb-0.5" style={{ color: ts.loai === 'tot' ? '#4ade80' : '#f87171' }}>{ts.ten}</p>
+                    <p className="text-xs leading-5" style={{ color: '#c4b0e0' }}>{ts.moTa}</p>
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="flex-1 rounded-xl p-3" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
-              <p className="text-xs font-medium mb-2" style={{ color: "#f87171" }}>⚠️ Giờ xấu</p>
-              {tuvi.gioXau.map(g => (
-                <p key={g} className="text-xs py-1" style={{ color: "#c4b0e0" }}>{g}</p>
+          )}
+
+          {/* Giờ tốt theo việc */}
+          <div className="flex flex-col gap-2 mb-3">
+            {tuvi.gioChiTiet
+              .filter(g => g.sao > 0)
+              .sort((a, b) => b.sao - a.sao)
+              .map(g => (
+                <div key={g.chi} className="flex items-start gap-3 rounded-xl p-3"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                  <div className="text-xs w-10 text-center shrink-0 mt-0.5">
+                    {g.sao === 3 ? '⭐⭐⭐' : g.sao === 2 ? '⭐⭐' : '⭐'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: '#f3e8ff' }}>{g.label}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {g.viecPhuHop.map(v => (
+                        <span key={v} className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(168,85,247,0.15)', color: '#d8b4fe' }}>{v}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <span className="text-xs px-2 py-1 rounded-full shrink-0"
+                    style={{ background: `${NGU_HANH_COLOR[g.nguHanh] ?? '#a855f7'}22`, color: NGU_HANH_COLOR[g.nguHanh] ?? '#a855f7' }}>
+                    {g.nguHanh}
+                  </span>
+                </div>
               ))}
-            </div>
           </div>
-          <p className="text-xs mt-3" style={{ color: "#7c5fa8" }}>
-            Tính từ chi ngày hôm nay theo bảng hoàng đạo truyền thống — mang tính tham khảo.
-          </p>
+
+          {/* Giờ hạn chế */}
+          <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-xs mb-1" style={{ color: '#f87171' }}>⚫ Giờ hạn chế</p>
+            <p className="text-xs leading-6" style={{ color: '#6b4f8a' }}>
+              {tuvi.gioChiTiet.filter(g => g.sao === 0).map(g => g.chi).join(' · ')}
+            </p>
+          </div>
         </Card>
 
         {/* May mắn */}

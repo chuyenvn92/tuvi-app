@@ -378,15 +378,160 @@ function getDanhGiaColor(mucDo: MucDoDanhGia): string {
 
 export function getGioTotXau() {
   const today = new Date();
-  // Tính chi ngày hôm nay từ JD
   const jd = jdFromDate(today.getDate(), today.getMonth() + 1, today.getFullYear());
+  const canNgayHom = THIEN_CAN[mod(jd + 9, 10)];
   const chiNgayHom = DIA_CHI[mod(jd + 1, 12)];
   const hoangDaoIdx = HOANG_DAO[chiNgayHom] ?? [0, 2, 4, 6, 8, 10];
   const gioTot = hoangDaoIdx.map(i => GIO_LABEL[i]);
   const gioXau = [0,1,2,3,4,5,6,7,8,9,10,11]
     .filter(i => !hoangDaoIdx.includes(i))
     .map(i => GIO_LABEL[i]);
-  return { gioTot, gioXau, chiNgay: chiNgayHom };
+  return { gioTot, gioXau, chiNgay: chiNgayHom, canNgay: canNgayHom };
+}
+
+// ============================================================
+// THẦN SÁT & GIỜ CHI TIẾT
+// ============================================================
+
+export interface ThanSat {
+  ten: string;
+  loai: 'tot' | 'xau';
+  emoji: string;
+  moTa: string;
+}
+
+export interface GioChiTiet {
+  label: string;
+  chi: string;
+  nguHanh: string;
+  isHoangDao: boolean;
+  sao: 0 | 1 | 2 | 3;
+  viecPhuHop: string[];
+}
+
+const QUY_NHAN_MAP: Record<string, string[]> = {
+  'Giáp': ['Sửu', 'Mùi'], 'Mậu': ['Sửu', 'Mùi'],
+  'Ất': ['Tý', 'Thân'], 'Kỷ': ['Tý', 'Thân'],
+  'Bính': ['Hợi', 'Dậu'], 'Đinh': ['Hợi', 'Dậu'],
+  'Canh': ['Dần', 'Ngọ'], 'Tân': ['Dần', 'Ngọ'],
+  'Nhâm': ['Mão', 'Tỵ'], 'Quý': ['Mão', 'Tỵ'],
+};
+
+const VAN_XUONG_MAP: Record<string, string> = {
+  'Giáp': 'Tỵ', 'Ất': 'Ngọ', 'Bính': 'Thân', 'Đinh': 'Dậu',
+  'Mậu': 'Thân', 'Kỷ': 'Dậu', 'Canh': 'Hợi', 'Tân': 'Tý',
+  'Nhâm': 'Dần', 'Quý': 'Mão',
+};
+
+const LOC_THAN_MAP: Record<string, string> = {
+  'Giáp': 'Dần', 'Ất': 'Mão', 'Bính': 'Tỵ', 'Đinh': 'Ngọ',
+  'Mậu': 'Tỵ', 'Kỷ': 'Ngọ', 'Canh': 'Thân', 'Tân': 'Dậu',
+  'Nhâm': 'Hợi', 'Quý': 'Tý',
+};
+
+const TAM_HOP_IDX: Record<string, number> = {
+  'Thân': 0, 'Tý': 0, 'Thìn': 0,
+  'Dần': 1, 'Ngọ': 1, 'Tuất': 1,
+  'Tỵ': 2, 'Dậu': 2, 'Sửu': 2,
+  'Hợi': 3, 'Mão': 3, 'Mùi': 3,
+};
+const KIEP_SAT_CHI_LIST = ['Tỵ', 'Hợi', 'Dần', 'Thân'];
+const TAI_SAT_CHI_LIST = ['Ngọ', 'Tý', 'Mão', 'Dậu'];
+
+const XUNG_MAP: Record<string, string> = {
+  'Tý': 'Ngọ', 'Ngọ': 'Tý', 'Sửu': 'Mùi', 'Mùi': 'Sửu',
+  'Dần': 'Thân', 'Thân': 'Dần', 'Mão': 'Dậu', 'Dậu': 'Mão',
+  'Thìn': 'Tuất', 'Tuất': 'Thìn', 'Tỵ': 'Hợi', 'Hợi': 'Tỵ',
+};
+
+const CHI_NGU_HANH_GIO: Record<string, string> = {
+  'Tý': 'Thủy', 'Hợi': 'Thủy',
+  'Dần': 'Mộc', 'Mão': 'Mộc',
+  'Tỵ': 'Hỏa', 'Ngọ': 'Hỏa',
+  'Thìn': 'Thổ', 'Tuất': 'Thổ', 'Sửu': 'Thổ', 'Mùi': 'Thổ',
+  'Thân': 'Kim', 'Dậu': 'Kim',
+};
+
+const VIEC_PHU_HOP_GIO: Record<string, string[]> = {
+  'Tý':   ['Cầu tài', 'Gặp quý nhân'],
+  'Sửu':  ['Ký kết', 'Xây dựng', 'Động thổ'],
+  'Dần':  ['Xuất hành', 'Khởi sự', 'Mở hàng'],
+  'Mão':  ['Học hành', 'Gặp gỡ', 'Đàm phán'],
+  'Thìn': ['Ký kết', 'Đàm phán', 'Họp bàn'],
+  'Tỵ':   ['Tài lộc', 'Khai trương', 'Thu tiền'],
+  'Ngọ':  ['Gặp quý nhân', 'Cầu tài', 'Xuất hành'],
+  'Mùi':  ['Hợp tác', 'Xã giao', 'Giải tranh chấp'],
+  'Thân': ['Ký kết', 'Thu tiền', 'Đàm phán'],
+  'Dậu':  ['Tài lộc', 'Đầu tư', 'Cầu tài'],
+  'Tuất': ['Cầu an', 'Tổng kết', 'Gặp gia đình'],
+  'Hợi':  ['Nghỉ ngơi', 'Tích lũy', 'Lên kế hoạch'],
+};
+
+export function getThanSatHomNay(
+  tuTru: { nam: TruCanChi },
+  canNgayHom: string,
+  chiNgayHom: string,
+): ThanSat[] {
+  const result: ThanSat[] = [];
+  const chiNamSinh = tuTru.nam.chi;
+  const canNamSinh = tuTru.nam.can;
+
+  if ((QUY_NHAN_MAP[canNgayHom] ?? []).includes(chiNgayHom)) {
+    result.push({ ten: 'Thiên Ất Quý Nhân', loai: 'tot', emoji: '⭐', moTa: 'Ngày có quý nhân phù trợ — hợp để gặp gỡ, nhờ vả, đàm phán; việc khó dễ hóa suôn sẻ.' });
+  }
+  if (VAN_XUONG_MAP[canNamSinh] === chiNgayHom) {
+    result.push({ ten: 'Văn Xương', loai: 'tot', emoji: '📚', moTa: 'Sao học vấn chiếu sáng — tốt cho học hành, thi cử, ký kết giấy tờ và mọi việc cần sự rõ ràng.' });
+  }
+  if (LOC_THAN_MAP[canNgayHom] === chiNgayHom) {
+    result.push({ ten: 'Lộc Thần', loai: 'tot', emoji: '💰', moTa: 'Ngày Lộc Thần — tài khí vượng, hợp để khai trương, thu tiền, khởi động việc kinh doanh.' });
+  }
+
+  const groupIdx = TAM_HOP_IDX[chiNamSinh];
+  if (groupIdx !== undefined) {
+    if (KIEP_SAT_CHI_LIST[groupIdx] === chiNgayHom) {
+      result.push({ ten: 'Kiếp Sát', loai: 'xau', emoji: '⚠️', moTa: 'Kiếp Sát chiếu — cẩn thận tài vật, tránh mang nhiều tiền mặt, đề phòng kẻ xấu lợi dụng.' });
+    }
+    if (TAI_SAT_CHI_LIST[groupIdx] === chiNgayHom) {
+      result.push({ ten: 'Tai Sát', loai: 'xau', emoji: '🔴', moTa: 'Tai Sát chiếu — đề phòng tai nạn nhỏ, hạn chế đi xa, cẩn thận khi vận hành xe cộ máy móc.' });
+    }
+  }
+
+  const curYearChi = DIA_CHI[mod(new Date().getFullYear() - 4, 12)];
+  if (XUNG_MAP[curYearChi] === chiNgayHom) {
+    result.push({ ten: 'Tuế Phá', loai: 'xau', emoji: '💥', moTa: 'Ngày Tuế Phá — hạn chế khởi sự việc lớn, ký kết quan trọng hoặc di chuyển xa.' });
+  }
+
+  return result;
+}
+
+function getQuanHeGio(nguHanhNguoi: string, nguHanhGio: string): 'duoc-sinh' | 'trung-tinh' | 'sinh' | 'khac' | 'bi-khac' {
+  if (nguHanhNguoi === nguHanhGio) return 'trung-tinh';
+  const rel = TUONG_SINH_KHAC[nguHanhNguoi];
+  if (!rel) return 'trung-tinh';
+  if (nguHanhGio === rel.biSinh) return 'duoc-sinh';
+  if (nguHanhGio === rel.sinh) return 'sinh';
+  if (nguHanhGio === rel.biKhac) return 'bi-khac';
+  if (nguHanhGio === rel.khac) return 'khac';
+  return 'trung-tinh';
+}
+
+export function getGioChiTiet(nguHanhBanMenh: string, chiNgayHom: string): GioChiTiet[] {
+  const hoangDaoIdxs = HOANG_DAO[chiNgayHom] ?? [0, 2, 4, 6, 8, 10];
+  return GIO_LABEL.map((label, idx) => {
+    const chi = DIA_CHI[idx];
+    const nguHanh = CHI_NGU_HANH_GIO[chi] ?? 'Thổ';
+    const isHoangDao = hoangDaoIdxs.includes(idx);
+    const quanHe = getQuanHeGio(nguHanhBanMenh, nguHanh);
+
+    let sao: 0 | 1 | 2 | 3;
+    if (!isHoangDao) {
+      sao = quanHe === 'duoc-sinh' ? 1 : 0;
+    } else {
+      sao = quanHe === 'duoc-sinh' ? 3 : quanHe === 'bi-khac' ? 1 : 2;
+    }
+
+    return { label, chi, nguHanh, isHoangDao, sao, viecPhuHop: VIEC_PHU_HOP_GIO[chi] ?? [] };
+  });
 }
 
 // Màu, số, hướng may mắn theo ngũ hành
